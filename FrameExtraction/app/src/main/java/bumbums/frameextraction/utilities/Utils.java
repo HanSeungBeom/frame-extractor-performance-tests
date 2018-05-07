@@ -91,8 +91,8 @@ public class Utils {
         return Uri.fromFile(outFile);
     }
 
-    public static int getSecFromMs(long milliseconds){
-        return (int) (milliseconds / 1000) % 60 ;
+    public static double getSecFromMs(long milliseconds){
+        return  ((double)milliseconds / 1000) ;
     }
 
     public static int getDelayOfFrame(int fps){

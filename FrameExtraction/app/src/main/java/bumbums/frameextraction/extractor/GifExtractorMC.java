@@ -36,10 +36,7 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
     private static final String TAG = GifExtractorMC.class.getSimpleName();
 
     private static final String VIDEO = "video/";
-    private static final int TIME_OUT_US = -1;
-
-    //textureview
-    private TextureView mTextureView;
+    private static final int TIME_OUT_US = 10000;
 
     //context
     private Context mContext;
@@ -60,18 +57,28 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
     private MediaExtractor mExtractor;
     private MediaCodec mDecoder;
 
-    public GifExtractorMC(Context context, Bundle extractInfo, TextureView textureView) {
+    //for pick range
+    private long mAddRate;
+
+    //gif Uri
+    private Uri mResult;
+
+    public GifExtractorMC(Context context, Bundle extractInfo) {
         super(context);
         mContext = context;
         mHandler = (ExtractHandler) context;
         mExtractInfo = extractInfo;
-        mTextureView = textureView;
     }
 
     @Override
     protected void onStartLoading() {
         super.onStartLoading();
 
+        //prevent reload
+        if (mResult != null) {
+            deliverResult(mResult);
+            return;
+        }
         //get extractInfo from bundle
         Uri videoUri = Uri.parse(mExtractInfo.getString(GIF_EXTRACT_VIDEO_URI));
         long startPos = mExtractInfo.getLong(GIF_EXTRACT_START);
@@ -97,7 +104,8 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
 
         /* setting MediaCodec */
         mExtractor = new MediaExtractor();
-        mExtractor.setDataSource(RealPathUtil.getRealPath(context, videoUri));
+        String path = RealPathUtil.getRealPath(context, videoUri);
+        mExtractor.setDataSource(path);
 
         /* get viedo track */
         for (int i = 0; i < mExtractor.getTrackCount(); i++) {
@@ -109,7 +117,6 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
                 try {
                     Log.d(TAG, "format : " + format);
                     mDecoder.configure(format, null, null, 0);
-
 
                 } catch (IllegalStateException e) {
                     Log.e(TAG, "codec '" + mime + "' failed configuration. " + e);
@@ -123,16 +130,19 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
         long totalTimeMs = endPos - startPos;
 
         //calculate total count of frames we need and delay between frames.
-        int neededFrame = (fps * (Utils.getSecFromMs(totalTimeMs)));
+        int neededFrame = (int) (fps * (Utils.getSecFromMs(totalTimeMs)));
         long addRate = totalTimeMs / neededFrame;
+        mAddRate = addRate;
 
         mFramePos = new ArrayList<>();
 
         //calculate frame Position needed
-        //ensure the onRenderedFirstTime() is always called
         for (long pos = startPos; pos < endPos; pos += addRate) {
             mFramePos.add(pos);
         }
+
+        //move to the start position.
+        mExtractor.seekTo(startPos, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
 
         initEncoder(fps);
     }
@@ -150,66 +160,103 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
     public Uri extract() {
         Log.d(TAG, "startExtract..");
 
-        mExtractedFrameList = new ArrayList<>();
+        //extract with mediacodec
+        mExtractedFrameList = getExtractedFrames();
 
-        for (int i = 0; i < mFramePos.size(); i++) {
-            Log.d(TAG, "extractFrame..(" + (i + 1) + "/" + mFramePos.size() + ")");
-            Long nextPos = mFramePos.get(i);
-            Bitmap bitmap = getFrame(nextPos);
-            mHandler.onFrameExtracted(bitmap);
-            mExtractedFrameList.add(bitmap);
-        }
-
+        //encode bitmap frames
+        Log.d(TAG, "encodeGif..");
         for (Bitmap frame : mExtractedFrameList)
             mGifEncoder.addFrame(frame);
 
-        Log.d(TAG, "encodeGif..");
+        mGifEncoder.finish();
+        Log.d(TAG, "encodeGif Finished..");
 
         mDecoder.stop();
         mDecoder.release();
         mExtractor.release();
 
-        mGifEncoder.finish();
+        mResult = Utils.makeGifFile(mBaos);
 
-        return Utils.makeGifFile(mBaos);
+        return mResult;
     }
 
-    public Bitmap getFrame(long positionMs) {
-        Bitmap frame = null;
+    public ArrayList<Bitmap> getExtractedFrames() {
+        ArrayList<Bitmap> extractedFrames = new ArrayList<>();
 
-        int inputIndex = mDecoder.dequeueInputBuffer(TIME_OUT_US);
+        int nextPosPointer = 0;
+        boolean isInput = true;
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
 
 
-        /* put data to inputBuffer using MediaExtractor */
-        if (inputIndex >= 0) {
-            ByteBuffer inputBuffer = mDecoder.getInputBuffer(inputIndex);
-            //TODO it have to change because it seek to only key frame near positionMs.
-            mExtractor.seekTo(Utils.msToUs(positionMs), MediaExtractor.SEEK_TO_CLOSEST_SYNC);
-            //mExtractor.advance();
-            int sampleSize = mExtractor.readSampleData(inputBuffer, 0);
+        while (nextPosPointer < mFramePos.size()) {
+            if (isInput) {
+                int inputIndex = mDecoder.dequeueInputBuffer(TIME_OUT_US);
 
-            if (sampleSize > 0) {
-                mDecoder.queueInputBuffer(inputIndex, 0, sampleSize, mExtractor.getSampleTime(), 0);
+                /* put data to inputBuffer using MediaExtractor */
+                if (inputIndex >= 0) {
+                    ByteBuffer inputBuffer = mDecoder.getInputBuffer(inputIndex);
+
+                    int sampleSize = mExtractor.readSampleData(inputBuffer, 0);
+
+                    if (mExtractor.advance() && sampleSize > 0) {
+                        mDecoder.queueInputBuffer(inputIndex, 0, sampleSize, mExtractor.getSampleTime(), 0);
+
+                    } else {
+                        Log.d(TAG, "InputBuffer BUFFER_FLAG_END_OF_STREAM");
+                        mDecoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                        isInput = false;
+                    }
+                }
             }
-        }
 
-        while (true) {
             /* get data from outputBuffer */
             int outIndex = mDecoder.dequeueOutputBuffer(info, TIME_OUT_US);
             if (outIndex >= 0) {
+
+                long presentationTimeUs = info.presentationTimeUs;
+                Log.d(TAG, "presentationTimeUs:" + String.valueOf(presentationTimeUs));
+
+                //break when presentationTimeUs > end Position
+                if (presentationTimeUs > Utils.msToUs(mExtractInfo.getLong(GIF_EXTRACT_END))) {
+                    break;
+                }
+
                 ByteBuffer outputBuffer = mDecoder.getOutputBuffer(outIndex);
-                MediaFormat format = mDecoder.getOutputFormat(outIndex); //
-                frame = Utils.outputBufferToFrame(outputBuffer, format);
+                MediaFormat format = mDecoder.getOutputFormat(outIndex);
+                try {
+                    long nextPos = mFramePos.get(nextPosPointer);
+                    if (isRange(nextPos, presentationTimeUs)) {
+                        Log.d(TAG, "extractFrame..(" + (nextPosPointer + 1) + "/" + mFramePos.size() + ")");
+                        Bitmap frame = Utils.outputBufferToFrame(outputBuffer, format);
+                        mHandler.onFrameExtracted(frame);
+                        extractedFrames.add(frame);
+                        nextPosPointer++;
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
                 mDecoder.releaseOutputBuffer(outIndex, false);
-                return frame;
             } else if (outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 mDecoder.getOutputFormat();
-                continue;
             }
 
+            // All decoded frames have been rendered, we can stop playing now
+            if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                Log.d(TAG, "OutputBuffer BUFFER_FLAG_END_OF_STREAM");
+                break;
+            }
         }
 
+        return extractedFrames;
+
     }
+
+    public boolean isRange(long nextPos, long presentationTimeUs) {
+        long presentationTime = presentationTimeUs / 1000;
+        return ((nextPos - (double) mAddRate * 0.75) <= presentationTime) &&
+                (presentationTime < (nextPos + (double) mAddRate * 0.75));
+    }
+
 
 }

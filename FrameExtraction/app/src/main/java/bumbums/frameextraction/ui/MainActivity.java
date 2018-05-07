@@ -30,6 +30,7 @@ import bumbums.frameextraction.extractor.ExtractHandler;
 import bumbums.frameextraction.extractor.GifExtractorEXO;
 import bumbums.frameextraction.extractor.GifExtractorFMMR;
 import bumbums.frameextraction.extractor.GifExtractorMC;
+import bumbums.frameextraction.extractor.VideoDecoderActivity;
 import bumbums.frameextraction.utilities.Utils;
 import pl.droidsonroids.gif.GifDrawable;
 import pl.droidsonroids.gif.GifImageView;
@@ -197,6 +198,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     setVideo(selectedVideoUri);
                     mPickedVideo = selectedVideoUri;
 
+                     Intent i = new Intent(this,VideoDecoderActivity.class);
+                /*    i.putExtra("video_uri",selectedVideoUri.toString());
+                    startActivity(i);*/
                 }
             }
         }
@@ -244,7 +248,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case LOADER_EXTRACT_GIF_FMMR:
                 return new GifExtractorFMMR(this, extractInfo);
             case LOADER_EXTRACT_GIF_MEDIACODEC:
-                return new GifExtractorMC(this, extractInfo,mTextureView);
+                return new GifExtractorMC(this, extractInfo);
             default:
                 return null;
         }

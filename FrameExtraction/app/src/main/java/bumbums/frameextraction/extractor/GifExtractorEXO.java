@@ -81,7 +81,7 @@ public class GifExtractorEXO implements VideoListener, Player.EventListener {
         int totalTimeMs = (int) mExtractPlayer.getDuration();
 
         //calculate total count of frames we need and delay between frames.
-        int neededFrame = (mFps * (Utils.getSecFromMs(totalTimeMs)));
+        int neededFrame = (int)(mFps * (Utils.getSecFromMs(totalTimeMs)));
         int addRate = totalTimeMs / neededFrame;
 
         //it makes seekTo() method faster. it choose frame from (position - addRate/2) to (position + addRate/2).
