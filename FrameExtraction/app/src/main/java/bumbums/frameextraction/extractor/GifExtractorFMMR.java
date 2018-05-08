@@ -127,6 +127,8 @@ public class GifExtractorFMMR extends AsyncTaskLoader<Uri> {
     public Uri extract() {
         Log.d(TAG,"startExtract..");
 
+        long start = System.currentTimeMillis();
+
         mExtractedFrameList = new ArrayList<>();
 
         for (int i=0;i<mFramePos.size();i++) {
@@ -138,6 +140,11 @@ public class GifExtractorFMMR extends AsyncTaskLoader<Uri> {
             mExtractedFrameList.add(bitmap);
         }
 
+        long end = System.currentTimeMillis();
+        Log.d(TAG,"total frame size:"+mFramePos.size());
+        Log.d(TAG,"total time :"+String.valueOf(end-start));
+        Log.d(TAG,"1 frame extraction = :"+((double)(end-start)/mFramePos.size()));
+
         for (Bitmap frame : mExtractedFrameList)
             mGifEncoder.addFrame(frame);
 
@@ -145,6 +152,7 @@ public class GifExtractorFMMR extends AsyncTaskLoader<Uri> {
         mFFmpecRetriever.release();
         //mRetriever.release();
         mGifEncoder.finish();
+
 
         return Utils.makeGifFile(mBaos);
     }

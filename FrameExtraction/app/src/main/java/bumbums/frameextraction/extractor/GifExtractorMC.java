@@ -168,8 +168,15 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
     public Uri extract() {
         Log.d(TAG, "startExtract..");
 
+        long start = System.currentTimeMillis();
+
         //extract with mediacodec
         mExtractedFrameList = getExtractedFrames();
+
+        long end = System.currentTimeMillis();
+        Log.d(TAG,"total frame size:"+mFramePos.size());
+        Log.d(TAG,"total time :"+String.valueOf(end-start));
+        Log.d(TAG,"1 frame extraction = :"+((double)(end-start)/mFramePos.size()));
 
         //encode bitmap frames
         Log.d(TAG, "encodeGif..");

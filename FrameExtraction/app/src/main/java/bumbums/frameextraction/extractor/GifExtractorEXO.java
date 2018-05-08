@@ -20,6 +20,7 @@ import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.video.VideoListener;
 
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -47,6 +48,7 @@ public class GifExtractorEXO implements VideoListener, Player.EventListener {
     //about gif encoder
     private GifEncoder mGifEncoder;
     private Queue<Long> mFramePos;
+    private ArrayList<Bitmap> mExtractedFrameList;
 
     //about making gif to file.
     private ByteArrayOutputStream mBaos;
@@ -59,6 +61,9 @@ public class GifExtractorEXO implements VideoListener, Player.EventListener {
 
     //this flag for checking if video loaded or not
     private boolean mDuration;
+
+    //performance time
+    long mStart,mEnd,mFrameSize;
 
     /* constructor */
     public GifExtractorEXO(Context context,PlayerView playerView, TextureView textureView) {
@@ -94,6 +99,7 @@ public class GifExtractorEXO implements VideoListener, Player.EventListener {
         for (long pos = addRate; pos < totalTimeMs-addRate; pos += addRate) {
             mFramePos.add(pos);
         }
+        mFrameSize = mFramePos.size();
 
         mGifEncoder = new GifEncoder();
         mBaos = new ByteArrayOutputStream();
@@ -108,6 +114,8 @@ public class GifExtractorEXO implements VideoListener, Player.EventListener {
     }
 
     public void startExtract() {
+        mExtractedFrameList = new ArrayList<>();
+        mStart = System.currentTimeMillis();
         pullNextPosAndSeekTo();
     }
 
@@ -126,11 +134,20 @@ public class GifExtractorEXO implements VideoListener, Player.EventListener {
         if (isInitialize) {
             if (!mFramePos.isEmpty()) {
                 Bitmap frame = getCurrentFrame();
-                mGifEncoder.addFrame(frame);
+                mExtractedFrameList.add(frame);
                 mHandler.onFrameExtracted(frame);
                 pullNextPosAndSeekTo();
             }
             else{
+                mEnd = System.currentTimeMillis();
+
+                Log.d(TAG,"total frame size:"+mFrameSize);
+                Log.d(TAG,"total time :"+String.valueOf(mEnd-mStart));
+                Log.d(TAG,"1 frame extraction = :"+((double)(mEnd-mStart)/mFrameSize));
+
+                for(Bitmap frame : mExtractedFrameList)
+                    mGifEncoder.addFrame(frame);
+
                 mGifEncoder.finish();
                 mHandler.onExtractionFinished(Utils.makeGifFile(mBaos));
             }
