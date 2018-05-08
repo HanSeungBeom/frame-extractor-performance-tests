@@ -100,7 +100,7 @@ public class GifExtractorFMMR extends AsyncTaskLoader<Uri> {
         long totalTimeMs = endPos - startPos;
 
         //calculate total count of frames we need and delay between frames.
-        int neededFrame = (fps * (Utils.getSecFromMs(totalTimeMs)));
+        int neededFrame = (int)(fps * (Utils.getSecFromMs(totalTimeMs)));
         long addRate = totalTimeMs / neededFrame;
 
         mFramePos = new ArrayList<>();

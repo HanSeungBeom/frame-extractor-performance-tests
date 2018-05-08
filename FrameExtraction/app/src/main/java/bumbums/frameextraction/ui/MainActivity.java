@@ -29,6 +29,7 @@ import bumbums.frameextraction.R;
 import bumbums.frameextraction.extractor.ExtractHandler;
 import bumbums.frameextraction.extractor.GifExtractorEXO;
 import bumbums.frameextraction.extractor.GifExtractorFMMR;
+import bumbums.frameextraction.extractor.GifExtractorMC;
 import bumbums.frameextraction.utilities.Utils;
 import pl.droidsonroids.gif.GifDrawable;
 import pl.droidsonroids.gif.GifImageView;
@@ -38,12 +39,15 @@ import static bumbums.frameextraction.extractor.GifExtractorFMMR.GIF_EXTRACT_FPS
 import static bumbums.frameextraction.extractor.GifExtractorFMMR.GIF_EXTRACT_START;
 import static bumbums.frameextraction.extractor.GifExtractorFMMR.GIF_EXTRACT_VIDEO_URI;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener, ExtractHandler, LoaderManager.LoaderCallbacks<Uri> {
+
+public class MainActivity extends AppCompatActivity implements View.OnClickListener, ExtractHandler,
+        LoaderManager.LoaderCallbacks<Uri> {
 
     private static final String TAG = MainActivity.class.getSimpleName();
 
     //Loader ID
-    private static final int LOADER_EXTRACT_GIF = 1;
+    private static final int LOADER_EXTRACT_GIF_FMMR = 1;
+    private static final int LOADER_EXTRACT_GIF_MEDIACODEC = 2;
 
     //OnActivityResult Constant
     private static final int REQUEST_TAKE_GALLERY_VIDEO = 1;
@@ -52,6 +56,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button mPickBtn, mStartBtn, mEndBtn, mExtractBtn;
     private EditText mEtStart, mEtEnd, mEtFps;
     private ImageView mFrameView;
+    private TextureView mFrameTextureView;
     private SimpleExoPlayer mPlayer;
     private TextureView mTextureView;
     private GifImageView mGifView;
@@ -85,6 +90,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mPlayerView = (PlayerView) findViewById(R.id.ev);
         mExtractView = (PlayerView) findViewById(R.id.ev_extract_view);
         mFrameView = (ImageView) findViewById(R.id.iv_frame);
+        mFrameTextureView = (TextureView) findViewById(R.id.tv_frame);
         mTextureView = (TextureView) findViewById(R.id.tv);
         mGifView = (GifImageView) findViewById(R.id.gif_view);
 
@@ -126,7 +132,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case R.id.btn_get_gif:
                 if (mOrigin != null) {
                     //getGifWithTextureView();
-                    getGifWithMMR();
+                    getGif(LOADER_EXTRACT_GIF_MEDIACODEC);
+                    //getGifWithMMR();
 
                 } else {
                     Toast.makeText(this, "no video", Toast.LENGTH_SHORT).show();
@@ -154,30 +161,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mExtractor.run(extractedVideo);
     }
 
-    public void getGifWithMMR() {
-        /* this bundle will be a argument for loader */
-        Bundle extractInfo = new Bundle();
-
-         /* set fps */
-        int fps = Integer.parseInt(mEtFps.getText().toString());
-        extractInfo.putInt(GIF_EXTRACT_FPS,fps);
-
-        /* set video range */
-        long startPos = Long.parseLong(mEtStart.getText().toString());
-        long endPos = Long.parseLong(mEtEnd.getText().toString());
-        extractInfo.putLong(GIF_EXTRACT_START,startPos);
-        extractInfo.putLong(GIF_EXTRACT_END,endPos);
-
-        /* set video uri */
-        extractInfo.putString(GIF_EXTRACT_VIDEO_URI, mPickedVideo.toString());
-
+    public void getGif(int loaderId) {
+        Bundle extractInfo = getExtractBundle();
         LoaderManager loaderManager = getSupportLoaderManager();
-        Loader loader = getSupportLoaderManager().getLoader(LOADER_EXTRACT_GIF);
+        Loader loader = getSupportLoaderManager().getLoader(loaderId);
         if (loader == null)
-            loaderManager.initLoader(LOADER_EXTRACT_GIF, extractInfo,this );
+            loaderManager.initLoader(loaderId, extractInfo, this);
         else
-            loaderManager.restartLoader(LOADER_EXTRACT_GIF, extractInfo, this);
-
+            loaderManager.restartLoader(loaderId, extractInfo, this);
     }
 
     /* This method is called after creating gif file. */
@@ -208,6 +199,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 if (selectedVideoUri != null) {
                     setVideo(selectedVideoUri);
                     mPickedVideo = selectedVideoUri;
+
                 }
             }
         }
@@ -250,14 +242,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 
     @Override
-    public Loader<Uri> onCreateLoader(int id, Bundle extractInfo) {
-        return new GifExtractorFMMR(this, extractInfo);
+    public Loader<Uri> onCreateLoader(int loaderId, Bundle extractInfo) {
+        switch (loaderId) {
+            case LOADER_EXTRACT_GIF_FMMR:
+                return new GifExtractorFMMR(this, extractInfo);
+            case LOADER_EXTRACT_GIF_MEDIACODEC:
+                return new GifExtractorMC(this, extractInfo, mFrameTextureView);
+            default:
+                return null;
+        }
     }
 
     /* called when end making gif */
     @Override
     public void onLoadFinished(Loader<Uri> loader, Uri gifUri) {
-        Log.d(TAG,"onLoadFinished..");
+        Log.d(TAG, "onLoadFinished..");
 
         setGif(gifUri);
     }
@@ -266,4 +265,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public void onLoaderReset(Loader<Uri> loader) {
 
     }
+
+    public Bundle getExtractBundle() {
+        /* this bundle will be a argument for loader */
+        Bundle extractInfo = new Bundle();
+
+         /* set fps */
+        int fps = Integer.parseInt(mEtFps.getText().toString());
+        extractInfo.putInt(GIF_EXTRACT_FPS, fps);
+
+        /* set video range */
+        long startPos = Long.parseLong(mEtStart.getText().toString());
+        long endPos = Long.parseLong(mEtEnd.getText().toString());
+        extractInfo.putLong(GIF_EXTRACT_START, startPos);
+        extractInfo.putLong(GIF_EXTRACT_END, endPos);
+
+        /* set video uri */
+        extractInfo.putString(GIF_EXTRACT_VIDEO_URI, mPickedVideo.toString());
+
+        return extractInfo;
+    }
+
 }
