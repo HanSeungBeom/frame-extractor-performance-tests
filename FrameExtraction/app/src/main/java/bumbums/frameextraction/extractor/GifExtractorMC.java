@@ -2,6 +2,7 @@ package bumbums.frameextraction.extractor;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.SurfaceTexture;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
@@ -9,6 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.content.AsyncTaskLoader;
 import android.util.Log;
+import android.view.Surface;
 import android.view.TextureView;
 
 import java.io.ByteArrayOutputStream;
@@ -38,6 +40,9 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
     private static final String VIDEO = "video/";
     private static final int TIME_OUT_US = 10000;
 
+    //textureview for capture frame
+    private TextureView mTextureView;
+
     //context
     private Context mContext;
 
@@ -63,11 +68,12 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
     //gif Uri
     private Uri mResult;
 
-    public GifExtractorMC(Context context, Bundle extractInfo) {
+    public GifExtractorMC(Context context, Bundle extractInfo, TextureView textureView) {
         super(context);
         mContext = context;
         mHandler = (ExtractHandler) context;
         mExtractInfo = extractInfo;
+        mTextureView = textureView;
     }
 
     @Override
@@ -116,7 +122,9 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
                 mDecoder = MediaCodec.createDecoderByType(mime);
                 try {
                     Log.d(TAG, "format : " + format);
-                    mDecoder.configure(format, null, null, 0);
+                    SurfaceTexture surfaceTexture = mTextureView.getSurfaceTexture();
+                    Surface surface = new Surface(surfaceTexture);
+                    mDecoder.configure(format, surface, null, 0);
 
                 } catch (IllegalStateException e) {
                     Log.e(TAG, "codec '" + mime + "' failed configuration. " + e);
@@ -214,21 +222,23 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
             if (outIndex >= 0) {
 
                 long presentationTimeUs = info.presentationTimeUs;
-                Log.d(TAG, "presentationTimeUs:" + String.valueOf(presentationTimeUs));
+                //Log.d(TAG, "presentationTimeUs:" + String.valueOf(presentationTimeUs));
 
                 //break when presentationTimeUs > end Position
                 if (presentationTimeUs > Utils.msToUs(mExtractInfo.getLong(GIF_EXTRACT_END))) {
                     break;
                 }
 
-                ByteBuffer outputBuffer = mDecoder.getOutputBuffer(outIndex);
-                MediaFormat format = mDecoder.getOutputFormat(outIndex);
+                //ByteBuffer outputBuffer = mDecoder.getOutputBuffer(outIndex);
+                //MediaFormat format = mDecoder.getOutputFormat(outIndex);
+                mDecoder.releaseOutputBuffer(outIndex, true);
                 try {
                     long nextPos = mFramePos.get(nextPosPointer);
                     if (isRange(nextPos, presentationTimeUs)) {
                         Log.d(TAG, "extractFrame..(" + (nextPosPointer + 1) + "/" + mFramePos.size() + ")");
-                        Bitmap frame = Utils.outputBufferToFrame(outputBuffer, format);
-                        mHandler.onFrameExtracted(frame);
+
+                        Bitmap frame = mTextureView.getBitmap();
+                        //mHandler.onFrameExtracted(frame);
                         extractedFrames.add(frame);
                         nextPosPointer++;
                     }
@@ -236,7 +246,7 @@ public class GifExtractorMC extends AsyncTaskLoader<Uri> {
                     e.printStackTrace();
                 }
 
-                mDecoder.releaseOutputBuffer(outIndex, false);
+
             } else if (outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 mDecoder.getOutputFormat();
             }

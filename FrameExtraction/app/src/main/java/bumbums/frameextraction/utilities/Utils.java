@@ -4,13 +4,9 @@ package bumbums.frameextraction.utilities;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
-import android.graphics.Bitmap;
-import android.media.MediaFormat;
 import android.net.Uri;
 import android.provider.MediaStore;
 
-import com.google.android.exoplayer2.SeekParameters;
 import com.google.android.exoplayer2.source.ClippingMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
@@ -24,9 +20,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-
-import static com.google.android.exoplayer2.C.msToUs;
 
 /**
  * Created by hanseungbeom on 2018. 4. 27..
@@ -135,14 +128,4 @@ public class Utils {
         }
         return rgb;
     }
-
-    public static Bitmap outputBufferToFrame(ByteBuffer outputBuffer, MediaFormat format){
-        byte[] byteArray = new byte[outputBuffer.remaining()];
-        outputBuffer.get(byteArray);
-        int width = format.getInteger(MediaFormat.KEY_WIDTH);
-        int height = format.getInteger(MediaFormat.KEY_HEIGHT);
-        int[] rgbArray = Utils.decodeYUV420SP(byteArray, width, height);
-        return Bitmap.createBitmap(rgbArray, width, height, Bitmap.Config.ARGB_8888);
-    }
-
 }
